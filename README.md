@@ -41,9 +41,9 @@ Find the magic squares in the given ranges
 
 ### Output files
 If the option '-o f' or '-o b' is used then in the output directory (-d) the following files will appear:
-- square_<number>.txt : A magic square is found
-- parker_<number>.txt : A parker square is found
-- state_<number>.json / state_main.json: The state of the process if option '-s true' is used
+- square_&lt;number&gt;.txt : A magic square is found
+- parker_&lt;number&gt;.txt : A parker square is found
+- state_&lt;number&gt;.json / state_main.json: The state of the process if option '-s true' is used
 
 
 ### Examples:
