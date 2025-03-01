@@ -15,7 +15,7 @@
    https://en.wikipedia.org/wiki/Legendre%27s_three-square_theorem
 
    x1 x2 x3
-   x3 x4 x6
+   x4 x5 x6
    x7 x8 x9
 
    row1 = x1 + x2 + x3
