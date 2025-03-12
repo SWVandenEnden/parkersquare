@@ -25,6 +25,13 @@ python parkersquare.py <start number-end number> <start number-end number>
 ```
 Find the magic squares in the given ranges
 
+```
+python parkersquare2.py <start number-end number>
+```
+Find the magic square of squares in the given range. This is an optimized version of parkersquare.py
+for large numbers and only search for squares.
+
+
 ### Command line
 | Option | Description |
 | ------ | ----------- |
@@ -53,4 +60,6 @@ python parkersquare.py 34344 -p 1 -l true -o s
 python parkersquare.py 100-100000 -p 2 -l false -o b
 python parkersquare.py 100000000000-200000000000 -p 2 -l false -o b -n auto -w 10 -s true
 python parkersquare.py 194481 -b true
+python parkersquare2.py 275333333696786028 -l true
+python parkersquare2.py 10000000000000000-2000000000000000000 -o b -n auto -w 10 -s true
 ```

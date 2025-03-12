@@ -44,7 +44,7 @@ import configparser
 import multiprocessing
 
 # ---------- Version information ---------------
-__version__     = "0.1.1"
+__version__     = "0.1.2"
 
 __author__      = "Gien van den Enden"
 __copyright__   = "Copyright 2025, Gien van den Enden"
@@ -326,7 +326,7 @@ def ParkerSquare( inMagicNumber, inConfig ):
 
     if glbMagicNumber % 3 != 0:
       if glbLog == True:
-        _parkerPrint( f"Magicnumber {glbMagicNumber} niet deelbaar door 3, geen oplossing mogelijk" )
+        _parkerPrint( f"Magicnumber {glbMagicNumber} not divisable by 3" )
       return False
 
     if glbBruteForce == True:
@@ -798,7 +798,7 @@ def StateWrite( state ):
     fileHandle.write( jsonObject )
 
 
-def StateRead( state ):
+def StateRead( state, config ):
   """
   Read state from disk, it give the new state back.
   It do not change the given state.
@@ -809,6 +809,9 @@ def StateRead( state ):
   newState = None
   with open( state[ "statefilename" ], encoding="utf-8" ) as fileHandle:
     newState = json.load( fileHandle )
+
+  # the state file cannot be restore, it is always in the datadirectory
+  newState[ "statefilename" ] = os.path.join( config[ "Parker" ][ "datadirectory"  ], "state_main.json" )
 
   return newState
 
@@ -843,7 +846,7 @@ def StateCreateLoad( config, magicNumbers, magicRanges):
   state[ "statefilename"   ] = os.path.join( config[ "Parker" ][ "datadirectory"  ], "state_main.json" )
 
   # already existing state preferred
-  newState = StateRead( state )
+  newState = StateRead( state, config )
   if newState != None:
     # change configuration with new state
     state = newState
