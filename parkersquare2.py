@@ -89,7 +89,7 @@ import configparser
 import multiprocessing
 
 # ---------- Version information ---------------
-__version__     = "0.1.2"
+__version__     = "0.1.3"
 
 __author__      = "Gien van den Enden"
 __copyright__   = "Copyright 2025, Gien van den Enden"
@@ -847,22 +847,34 @@ def WalkRanges( iRangeNo, startNum, endNum, iConfig ):
     # Load State
     _parkerStateRead()
 
-    while startNum % 3 != 0:
-      startNum += 1
-
     iRangeWalk = max( startNum, iRangeWalk )
-    iIteration = 0
+
+    while iRangeWalk % 3 != 0:
+      iRangeWalk += 1
+
+    #
+    # The middle (x5) is always a square
+    # The middle is always the magic number divided by 3
+    # If we calculate the magic number back to this
+    # and then count this (iCntWalk)
+    # We have then always a square in x5
+    #
+    iCntWalk = iRangeWalk // 3
+    iCntWalk = int( math.floor( math.sqrt( iCntWalk ) ) )
+
+    iRangeWalk = (iCntWalk * iCntWalk) * 3
+
     while iRangeWalk < endNum:
-
-      iIteration += 1
-      if iIteration > 10000000: # 10 million
-        if glbStateFile != None:
-          print( f"Save range: {iRangeNo} -> {iRangeWalk}")
-          _parkerStateSave()
-        iIteration = 1
-
+      print( f"Counter: {iCntWalk}, number: {iRangeWalk}" )
       ParkerSquare(iRangeWalk,iConfig )
-      iRangeWalk += 3
+
+      iCntWalk += 1
+      iRangeWalk = (iCntWalk * iCntWalk) * 3
+
+      # for big number ( > 14 digits) save state
+      if glbStateFile != None:
+        # print( f"Save range: {iRangeNo} -> {iRangeWalk}")
+        _parkerStateSave()
 
     # delete state
     if glbStateFile != None:
