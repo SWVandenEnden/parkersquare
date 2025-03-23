@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-   Parker Square 2
+   Parker Square 3
 
    Copyright (C) 2025 Gien van den Enden - swvandenenden@gmail.com
    License EUPL-1.2, see LICENSE file
 
-   Try to find a magic square of squares (optimized)
+   Try to find a magic square of squares
+   Optimized with 'non standard' Python modules
 
    https://www.bradyharanblog.com/the-parker-square
    https://proofwiki.org/wiki/Definition:Parker_Square
@@ -66,8 +67,6 @@
 
    x5 = magic number / 3 ( = c )
 
-   without proof: c + a + b cannot be a square
-
 
    check square is the difficult part...
    https://stackoverflow.com/questions/2489435/check-if-a-number-is-a-perfect-square
@@ -79,7 +78,6 @@
     275333333696786028
     275333335514476875 ->  46 found
    1734666668769321027 -> 136 found
- 206666667148436866875 -> 136 found
     275333380956750000 -> 190 found
    1270333644968606700 -> 244 found
      10000221038976675 -> 244 found
@@ -96,8 +94,12 @@ import datetime
 import configparser
 import multiprocessing
 
+from numba import njit
+from gmpy2 import is_square, isqrt
+
+
 # ---------- Version information ---------------
-__version__     = "0.1.4"
+__version__     = "0.1.5"
 
 __author__      = "Gien van den Enden"
 __copyright__   = "Copyright 2025, Gien van den Enden"
@@ -110,39 +112,35 @@ __status__      = "Production"
 
 
 def ParkerIntegerSqrt(n):
-  """Compute the integer square root of n, or None if n is not a perfect square.
-  https://cs.stackexchange.com/questions/97272/which-is-the-fastest-method-for-calculating-exact-square-root-of-a-integer-of-20
+  """Compute the integer square root of n"""
+  return isqrt( n )
 
-  unfortunately this is not working with 176923366583288836, it gives 420622595 but the answer must be 420622594
 
+@njit
+def ParkerThreeSquareCheck( number ):
   """
-  if n == 0:
-    return 0
+  Check if a number can be build with 3 squares
+  https://en.wikipedia.org/wiki/Legendre%27s_three-square_theorem
+  """
+  result = False
 
-  x = n // 2
-  while True:
-    y = (x + n // x) // 2
-    if abs(x - y) < 2:
-      break
-    x = y
-  if x * x == n:
-    return x
+  while number % 4 == 0:
+    number //= 4
 
-  if  (x - 1) * (x - 1) == n:
-    return x - 1
+  if number % 8 != 7:
+    result = True
 
-  if  (x + 1) * (x + 1) == n:
-    return x + 1
-
-  print( f"{n} is not a perfect square x={x}" )
-  return None
+  return result
 
 
-def ParkerIsSquare(n):
+def ParkerIsSquare(n :int ) -> int:
   """
   Check if integer is a perfect square
   https://stackoverflow.com/questions/2489435/check-if-a-number-is-a-perfect-square
   https://math.stackexchange.com/questions/131330/detecting-perfect-squares-faster-than-by-extracting-square-root/712818#712818
+  """
+  return bool( is_square( n ) )
+
   """
   ## Trivial checks
   # if type(n) != int:  ## integer
@@ -202,23 +200,45 @@ def ParkerIsSquare(n):
       return False
     a.add(x)
   return True
-
-
-def ParkerThreeSquareCheck( number ):
   """
-  Check if a number can be build with 3 squares
-  https://en.wikipedia.org/wiki/Legendre%27s_three-square_theorem
+
+@njit
+def ParkerDualSquares( glbMagicNumber, glbArrNumbers ):
   """
-  result = False
+  Get all the dual squares from x5
+  """
 
-  while number % 4 == 0:
-    number //= 4
+  # x5 = mpz( glbMagicNumber // 3 )
+  x5 = glbMagicNumber // 3
 
-  if number % 8 != 7:
-    result = True
+  # collect all the dual squares
+  # glbArrNumbers  = []
+  xCount         = 0
+  xSquare        = 0
+  xCounterSquare = 0
+  # xMiddleNumber  = mpz( glbMagicNumber - x5 )
+  xMiddleNumber  = glbMagicNumber - x5
 
-  return result
+  # glbArrNumbers.append( 0 ) # 1-based, 0 = zero
 
+  while True:
+    xCount  += 1
+    # xSquare  = mpz( xCount * xCount )  # this look faster then ** 2
+    xSquare  = xCount * xCount  # this look faster then ** 2
+    # xSquare  = int( mpz( xCount ** 2 ) )
+
+    if xSquare >= x5:
+      break
+
+    xCounterSquare = xMiddleNumber - xSquare
+    if not ParkerIsSquare( xCounterSquare ):
+    # if not is_square( xCounterSquare ):
+      continue
+
+    glbArrNumbers.append( xSquare        )
+    glbArrNumbers.append( xCounterSquare )
+
+  # return glbArrNumbers
 
 def ParkerSquare( inMagicNumber, inConfig ):
   """
@@ -354,12 +374,14 @@ def ParkerSquare( inMagicNumber, inConfig ):
       return False
 
     x5 = glbMagicNumber // 3
-    if ParkerIsSquare( x5 ) != True:
+    # if ParkerIsSquare( x5 ) != True:
+    if not is_square( x5 ):
       if glbLog == True:
         _parkerPrint( f"Magic number {glbMagicNumber} divided by 3 ({x5}) is not a perfect square" )
       return False
 
     return True
+
 
   def _parkerDualSquares():
     """
@@ -369,6 +391,7 @@ def ParkerSquare( inMagicNumber, inConfig ):
     nonlocal glbArrNumbers
     nonlocal glbMatrix
 
+    # x5 = mpz( glbMagicNumber // 3 )
     x5 = glbMagicNumber // 3
 
     # collect all the dual squares
@@ -376,24 +399,33 @@ def ParkerSquare( inMagicNumber, inConfig ):
     xCount         = 0
     xSquare        = 0
     xCounterSquare = 0
+    # xMiddleNumber  = mpz( glbMagicNumber - x5 )
     xMiddleNumber  = glbMagicNumber - x5
 
     glbArrNumbers.append( 0 ) # 1-based, 0 = zero
 
+    # ParkerDualSquares( glbMagicNumber, glbArrNumbers )
+
+    # print( f"After ParkerDualSquares: {glbArrNumbers}" )
+
+
     while True:
       xCount  += 1
+      # xSquare  = mpz( xCount * xCount )  # this look faster then ** 2
       xSquare  = xCount * xCount  # this look faster then ** 2
-      # xSquare  = xCount ** 2
+      # xSquare  = int( mpz( xCount ** 2 ) )
 
       if xSquare >= x5:
         break
 
       xCounterSquare = xMiddleNumber - xSquare
-      if not ParkerIsSquare( xCounterSquare ):
+      # if not ParkerIsSquare( int( xCounterSquare ) ):
+      if not is_square( xCounterSquare ):
         continue
 
       glbArrNumbers.append( xSquare        )
       glbArrNumbers.append( xCounterSquare )
+
 
     if len( glbArrNumbers ) < 8:
       return False
@@ -579,7 +611,7 @@ def DisplayHelp():
   print( "usage: python parkersquare2.py [options] <magicnumber> <magicnumber> <start-end>" )
   print( "options: " )
   print( "  -h               : Help" )
-  print( "  -d <directory>   : Directory to place the output, default is current working directory/'parker2'" )
+  print( "  -d <directory>   : Directory to place the output, default is current working directory/'parker3'" )
   print( "  -o <outputmode>  : Output mode, f=file, s=screen, b=both. Screen is the default" )
   print( "  -l <True/False>  : Extra log information, default is false" )
   print( "  -c <filename>    : Configuration file" )
@@ -786,7 +818,7 @@ def CheckConfiguration( config ):
   """
   # fill default directory
   if config[ "Parker" ][ "datadirectory"  ] == "":
-    glbDirectory = os.path.join( os.getcwd(), "parker2" )
+    glbDirectory = os.path.join( os.getcwd(), "parker3" )
     if config[ "Parker" ][ "outputmode" ] in [ 'b', 'f' ]:
       if not os.path.exists(glbDirectory):
         os.makedirs(glbDirectory)
