@@ -742,7 +742,7 @@ def CheckConfiguration( config ):
   # only check by file output
   if config[ "Parker" ][ "outputmode" ]  in [ 'b', 'f' ]:
     if not os.path.exists(config[ "Parker" ][ "datadirectory"  ]):
-      print( f"Directory {config[ "Parker" ][ "datadirectory"  ]} not found" )
+      print( f'Directory {config[ "Parker" ][ "datadirectory"  ]} not found' )
       return False
 
   return True
@@ -990,7 +990,7 @@ def MainStart():
     globalMagicNumbers = globalState[ "magicNumbers"   ]
     globalMagicRanges  = globalState[ "magicRanges"    ]
 
-    print( f"State restored: {globalState[ "statefilename" ]}" )
+    print( f'State restored: {globalState[ "statefilename" ]}' )
 
     if CheckConfiguration( globalConfig ) != True:
       sys.exit()
