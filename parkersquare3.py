@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-   Parker Square
+   Parker Square 3
 
    Copyright (C) 2025 Gien van den Enden - swvandenenden@gmail.com
    License EUPL-1.2, see LICENSE file
 
-   Try to find a Parker Square with brute force and some optimizations
+   Try to find a magic square of squares
+   Optimized with 'non standard' Python modules
 
    https://www.bradyharanblog.com/the-parker-square
    https://proofwiki.org/wiki/Definition:Parker_Square
    https://en.wikipedia.org/wiki/Magic_square
 
+   https://www.mathpages.com/home/kmath417/kmath417.htm
+
    https://en.wikipedia.org/wiki/Legendre%27s_three-square_theorem
+
+   https://en.wikipedia.org/wiki/Congruum
 
    x1 x2 x3
    x4 x5 x6
@@ -29,10 +34,56 @@
    d1   = x1 + x5 + x9
    d2   = x3 + x5 + x9
 
-   Parker Square: 21609 give almost a solution (1 diagonal not)
+   magic number = m
+   x1 + x5 + x9 = m
+   x3 + x5 + x7 = m
+   x2 + x5 + x8 = m
+   x4 + x5 + x6 = m
+
+   x1 + x9 = m - x5
+   x3 + x7 = m - x5
+   x2 + x8 = m - x5
+   x4 + x6 = m - x5
+
+   x1 < x2 < x3 < x4 < x5
+   x9 > x1
+   x8 > x2
+   x7 > x3
+   x6 > x4
+
+   x9 > x8 > x7 > x6 > x5
+
+   x5 = 1 .. ( m - 1^2 - 2^2 - 3^2 - 4^2) -> step ^2
+   x2 = 2 .. m -> step ^2
+   x9 = m - x5 - x1
+
+
+   Édouard Lucas : structure of a 3x3 magic square
+      c − b    | c + (a + b) |   c − a
+   ------------+-------------+------------
+   c − (a − b) |      c      | c + (a − b)
+   ------------+-------------+------------
+      c + a    | c − (a + b) |   c + b
+
+   x5 = magic number / 3 ( = c )
+
+
+   check square is the difficult part...
+   https://stackoverflow.com/questions/2489435/check-if-a-number-is-a-perfect-square
+
+
+   Some magic numbers that give 8 or more square numbers:
+     10000000028072187
+     76333334111688603
+    275333333696786028
+    275333335514476875 ->  46 found
+   1734666668769321027 -> 136 found
+    275333380956750000 -> 190 found
+   1270333644968606700 -> 244 found
+     10000221038976675 -> 244 found
+
 
 """
-
 import sys
 import os
 import time
@@ -43,8 +94,12 @@ import datetime
 import configparser
 import multiprocessing
 
+from numba import njit
+from gmpy2 import is_square, isqrt
+
+
 # ---------- Version information ---------------
-__version__     = "0.1.2"
+__version__     = "0.1.5"
 
 __author__      = "Gien van den Enden"
 __copyright__   = "Copyright 2025, Gien van den Enden"
@@ -56,8 +111,12 @@ __email__       = "swvandenenden@gmail.com"
 __status__      = "Production"
 
 
-# ---------- Magic Square check ---------------
+def ParkerIntegerSqrt(n):
+  """Compute the integer square root of n"""
+  return isqrt( n )
 
+
+@njit
 def ParkerThreeSquareCheck( number ):
   """
   Check if a number can be build with 3 squares
@@ -74,30 +133,127 @@ def ParkerThreeSquareCheck( number ):
   return result
 
 
+def ParkerIsSquare(n :int ) -> int:
+  """
+  Check if integer is a perfect square
+  https://stackoverflow.com/questions/2489435/check-if-a-number-is-a-perfect-square
+  https://math.stackexchange.com/questions/131330/detecting-perfect-squares-faster-than-by-extracting-square-root/712818#712818
+  """
+  return bool( is_square( n ) )
+
+  """
+  ## Trivial checks
+  # if type(n) != int:  ## integer
+  #   return False
+  if n < 0:      ## positivity
+    return False
+  if n == 0:      ## 0 pass
+    return True
+
+  ## Reduction by powers of 4 with bit-logic
+  while n&3 == 0:
+    n=n>>2
+
+  ## Simple bit-logic test. All perfect squares, in binary,
+  ## end in 001, when powers of 4 are factored out.
+  if n&7 != 1:
+    return False
+
+  if n==1:
+    return True  ## is power of 4, or even power of 2
+
+
+  ## Simple modulo equivalency test
+  c = n%10
+  if c in {3, 7}:
+    return False  ## Not 1,4,5,6,9 in mod 10
+  if n % 7 in {3, 5, 6}:
+    return False  ## Not 1,2,4 mod 7
+  if n % 9 in {2,3,5,6,8}:
+    return False
+  if n % 13 in {2,5,6,7,8,11}:
+    return False
+
+  ## Other patterns
+  if c == 5:  ## if it ends in a 5
+    if (n//10)%10 != 2:
+      return False    ## then it must end in 25
+    if (n//100)%10 not in {0,2,6}:
+      return False    ## and in 025, 225, or 625
+    if (n//100)%10 == 6:
+      if (n//1000)%10 not in {0,5}:
+        return False    ## that is, 0625 or 5625
+  else:
+    if (n//10)%4 != 0:
+      return False    ## (4k)*10 + (1,9)
+
+
+  ## Babylonian Algorithm. Finding the integer square root.
+  ## Root extraction.
+  s = (len(str(n))-1) // 2
+  x = (10**s) * 4
+
+  a = {x, n}
+  while x * x != n:
+    x = (x + (n // x)) >> 1
+    if x in a:
+      return False
+    a.add(x)
+  return True
+  """
+
+@njit
+def ParkerDualSquares( glbMagicNumber, glbArrNumbers ):
+  """
+  Get all the dual squares from x5
+  """
+
+  # x5 = mpz( glbMagicNumber // 3 )
+  x5 = glbMagicNumber // 3
+
+  # collect all the dual squares
+  # glbArrNumbers  = []
+  xCount         = 0
+  xSquare        = 0
+  xCounterSquare = 0
+  # xMiddleNumber  = mpz( glbMagicNumber - x5 )
+  xMiddleNumber  = glbMagicNumber - x5
+
+  # glbArrNumbers.append( 0 ) # 1-based, 0 = zero
+
+  while True:
+    xCount  += 1
+    # xSquare  = mpz( xCount * xCount )  # this look faster then ** 2
+    xSquare  = xCount * xCount  # this look faster then ** 2
+    # xSquare  = int( mpz( xCount ** 2 ) )
+
+    if xSquare >= x5:
+      break
+
+    xCounterSquare = xMiddleNumber - xSquare
+    if not ParkerIsSquare( xCounterSquare ):
+    # if not is_square( xCounterSquare ):
+      continue
+
+    glbArrNumbers.append( xSquare        )
+    glbArrNumbers.append( xCounterSquare )
+
+  # return glbArrNumbers
+
 def ParkerSquare( inMagicNumber, inConfig ):
   """
-  Search for the magic square
+  Search for the magic square of squares
   """
+  glbMagicNumber = inMagicNumber
+  glbLog         = True
+  glbOutputMode  = ""
+  glbFileName    = ""
+  glbArrNumbers  = []
   glbMatrixSize  = 9                       # matrix is 3x3 = 9
   glbMatrix      = [0] * (glbMatrixSize+1) # hold all the numbers, array is 0-bases we use 1 based
   glbSearchArr   = [0] * (glbMatrixSize+1) # order of search and the way of handling each field
-
-  glbMagicNumber = 15                      # The magic number for the horizontal, vertical and diagonal
-
-  glbArrNumbers  = [0]    # array of all the numbers, value is the calculate values
-  glbArrValues   = {}     # reverse of glbArrNumbers, hash is the calculated value, the value is the array number
-  glbArrSize     = 1      # size of glbArrNumbersdepending of magic number
-  glbPower       = 2      # power, 1 = normal, 2 = power of 2, 3 = power of 3, etc.
-
-  glbLog         = True   # extra logging
-  glbFileName    = ""     # filename for the output
+  glbCntSearch   = 0
   glbDirectory   = ""
-  glbOutputMode  = "b"    # f=file, s=screen, b=both
-  glbBruteForce  = False  # use brute force
-
-  glbCntSearch   = 0      # search index in glbMatrix
-
-  glbStateFile   = None   # filename for state file, none = no state file
 
 
   def _parkerPrint( line = "" ):
@@ -106,117 +262,26 @@ def ParkerSquare( inMagicNumber, inConfig ):
     """
     nonlocal glbOutputMode
     nonlocal glbFileName
+    nonlocal glbDirectory
+
+    if glbOutputMode == "":
+      glbOutputMode  = inConfig[ "Parker" ][ "outputmode"     ]
+      glbDirectory   = inConfig[ "Parker" ][ "datadirectory"  ]
 
     if glbOutputMode in [ "b", "s" ]:
       print( line )
 
     if glbOutputMode in [ "b", "f" ]:
+      if len( glbFileName ) == 0:
+        glbFileName = os.path.join( glbDirectory, f"parker_{glbMagicNumber}.txt" )
+
       line += '\n'
       with open( glbFileName, "a" , encoding="utf-8" ) as fileHandle:
         fileHandle.write( line )
 
-  def _parkerInit():
-    """
-    Initialization of the global vars
-    """
-    nonlocal glbMagicNumber
-    nonlocal glbArrSize
-    nonlocal glbMatrix
-    nonlocal glbArrNumbers
-    nonlocal glbSearchArr
-    nonlocal glbFileName
-    nonlocal glbDirectory
-    nonlocal glbStateFile
-    nonlocal glbOutputMode
-    nonlocal glbLog
-    nonlocal glbMatrixSize
-    nonlocal glbArrValues
-    nonlocal glbBruteForce
-
-    # no directory given, the use the current working directory with sub directory "parker"
-    if glbDirectory == None or len( glbDirectory ) == 0:
-      glbDirectory = os.path.join( os.getcwd(), "parker" )
-      if glbOutputMode in [ 'b', 'f' ]:
-        if not os.path.exists( glbDirectory ):
-          os.makedirs( glbDirectory )
-
-    if glbOutputMode in [ 'b', 'f' ]:
-      if os.path.exists( glbDirectory ) != True:
-        raise NameError( f"Directory {glbDirectory} does not exist" )
-
-    glbFileName = os.path.join( glbDirectory, f"parker_{glbMagicNumber}.txt" )
-
-    glbStateFile = None
-    if inConfig[ "Parker" ][ "state" ].startswith('t'):
-      glbStateFile = os.path.join( glbDirectory, f"state_{glbMagicNumber}.txt" )
-
-    if glbLog == True:
-      _parkerPrint( f"Start {datetime.datetime.now():%Y-%m-%d %H:%M:%S}" )
-
-    # we use 1-based, but set the zero (0) value too
-    # reset the matrix to zero
-    for iCnt in range( glbMatrixSize + 1 ):
-      glbMatrix[ iCnt ] = 0
-
-    glbArrSize = int( ( glbMagicNumber - 1 - 2 ** glbPower ) ** ( 1 / glbPower ) )
-
-    try:
-      # TODO to big array, can this an other way?
-      glbArrNumbers = [0] * ( glbArrSize + 1 )  # 1-based
-    except MemoryError as memExcept:
-      print( f"Memory error unable to locate array of size {glbArrSize}" )
-      raise memExcept
-
-    for iCnt in range( glbArrSize + 1 ):
-      iValue                 = iCnt ** glbPower
-      glbArrNumbers[ iCnt ]  = iValue
-      glbArrValues[ iValue ] = iCnt
-
-    # the glbSearchArr has order to calculate the values
-    # field = number in glbMatrix
-    # calc  = how the calc value, None = auto increment, array = field numbers to subtract of glbMagicNumber
-    # start = value to start, None = 1, otherwise array of field numbers, max value will the start value
-
-    if glbBruteForce == True:
-      # this search start left upper, brute force, no optimizations, search all combinations
-      glbSearchArr[ 0 ] = {}
-      glbSearchArr[ 1 ] = { "field":1, "calc": None    , "start": None  }
-      glbSearchArr[ 2 ] = { "field":3, "calc": None    , "start": None  }
-      glbSearchArr[ 3 ] = { "field":2, "calc": [ 1, 3] , "start": None  }
-      glbSearchArr[ 4 ] = { "field":5, "calc": None    , "start": None  }
-      glbSearchArr[ 5 ] = { "field":7, "calc": [ 3, 5] , "start": None  }
-      glbSearchArr[ 6 ] = { "field":4, "calc": [ 1, 7] , "start": None  }
-      glbSearchArr[ 7 ] = { "field":6, "calc": [ 4, 5] , "start": None  }
-      glbSearchArr[ 8 ] = { "field":8, "calc": [ 2, 5] , "start": None  }
-      glbSearchArr[ 9 ] = { "field":9, "calc": [ 3, 6] , "start": None  }
-    elif glbPower == 1:
-      glbSearchArr[ 0 ] = {}
-      glbSearchArr[ 1 ] = { "field":5, "calc": None    , "start": None  } # fixed always magicnumber / 3
-      glbSearchArr[ 2 ] = { "field":1, "calc": None    , "start": None  }
-      glbSearchArr[ 3 ] = { "field":9, "calc": [ 1, 5] , "start": None  }
-      glbSearchArr[ 4 ] = { "field":3, "calc": None    , "start": [1]   }
-      glbSearchArr[ 5 ] = { "field":2, "calc": [1,3]   , "start": None  }
-      glbSearchArr[ 6 ] = { "field":6, "calc": [ 3, 9] , "start": None  }
-      glbSearchArr[ 7 ] = { "field":4, "calc": [ 5, 6] , "start": None  }
-      glbSearchArr[ 8 ] = { "field":8, "calc": [ 2, 5] , "start": None  }
-      glbSearchArr[ 9 ] = { "field":7, "calc": [ 1, 4] , "start": None  }
-    else:
-      # this search start left upper
-      glbSearchArr[ 0 ] = {}
-      glbSearchArr[ 1 ] = { "field":1, "calc": None    , "start": None  }
-      glbSearchArr[ 2 ] = { "field":3, "calc": None    , "start": [1]   }
-      glbSearchArr[ 3 ] = { "field":2, "calc": [ 1, 3] , "start": None  }
-      glbSearchArr[ 4 ] = { "field":5, "calc": None    , "start": [3]   }
-      glbSearchArr[ 5 ] = { "field":7, "calc": [ 3, 5] , "start": None  }
-      glbSearchArr[ 6 ] = { "field":4, "calc": [ 1, 7] , "start": None  }
-      glbSearchArr[ 7 ] = { "field":6, "calc": [ 4, 5] , "start": None  }
-      glbSearchArr[ 8 ] = { "field":8, "calc": [ 2, 5] , "start": None  }
-      glbSearchArr[ 9 ] = { "field":9, "calc": [ 3, 6] , "start": None  }
-
   def _parkerPrintMatrix():
     nonlocal glbArrNumbers
     nonlocal glbMatrix
-    nonlocal glbPower
     nonlocal glbMagicNumber
 
     result = False
@@ -244,122 +309,184 @@ def ParkerSquare( inMagicNumber, inConfig ):
     else:
       result = True
 
-    if result == True or glbPower > 1:
-      powerStr = '^' + str(  glbPower       )
-      width    = math.log10( glbMagicNumber )
-      width    = math.ceil(  width          )
-      width   += 1
-      withP    = len( powerStr )
+    # print the square with numbers
+    powerStr = ''
+    width    = math.log10( glbMagicNumber )
+    width    = math.ceil(  width          )
+    width   += 1
+    withP    = 0
 
-      line = " " * ( (width + withP) * 3 + 1 )
-      _parkerPrint( f"{line}/{d2:>{width}}" )
+    line = " " * ( (width + withP) * 3 + 1 )
+    _parkerPrint( f"{line}/{d2:>{width}}" )
 
-      _parkerPrint( f"{glbMatrix[1]:>{width}}{powerStr}{glbMatrix[2]:>{width}}{powerStr}{glbMatrix[3]:>{width}}{powerStr} |{row1:>{width}}" )
-      _parkerPrint( f"{glbMatrix[4]:>{width}}{powerStr}{glbMatrix[5]:>{width}}{powerStr}{glbMatrix[6]:>{width}}{powerStr} |{row2:>{width}}" )
-      _parkerPrint( f"{glbMatrix[7]:>{width}}{powerStr}{glbMatrix[8]:>{width}}{powerStr}{glbMatrix[9]:>{width}}{powerStr} |{row3:>{width}}" )
+    _parkerPrint( f"{glbArrNumbers[glbMatrix[1]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[2]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[3]]:>{width}}{powerStr} |{row1:>{width}}" )
+    _parkerPrint( f"{glbArrNumbers[glbMatrix[4]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[5]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[6]]:>{width}}{powerStr} |{row2:>{width}}" )
+    _parkerPrint( f"{glbArrNumbers[glbMatrix[7]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[8]]:>{width}}{powerStr}{glbArrNumbers[glbMatrix[9]]:>{width}}{powerStr} |{row3:>{width}}" )
 
-      line = '-' * ( (width + withP) * 3 + 1)
-      _parkerPrint( line + "\\")
+    line = '-' * ( (width + withP) * 3 + 1)
+    _parkerPrint( line + "\\")
 
-      le = ' ' * withP
-      _parkerPrint( f"{col1:>{width}}{le}{col2:>{width}}{le}{col3:>{width}}{le}  {d1:>{width}}" )
-      _parkerPrint()
+    le = ' ' * withP
+    _parkerPrint( f"{col1:>{width}}{le}{col2:>{width}}{le}{col3:>{width}}{le}  {d1:>{width}}" )
+    _parkerPrint()
+
+    # print the square in squares ( ^2 format )
+    powerStr = '^' + str(  "2"       )
+    width    = math.log10( glbMagicNumber )
+    width    = math.ceil(  width          )
+    width   += 1
+    withP    = len( powerStr )
+
+    line = " " * ( (width) * 3 + 1 )
+    _parkerPrint( f"{line}/{d2:>{width}}" )
+
+    _parkerPrint( f"{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[1]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[2]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[3]] ):>{width - withP}}{powerStr} |{row1:>{width}}" )
+    _parkerPrint( f"{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[4]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[5]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[6]] ):>{width - withP}}{powerStr} |{row2:>{width}}" )
+    _parkerPrint( f"{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[7]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[8]] ):>{width - withP}}{powerStr}{ParkerIntegerSqrt( glbArrNumbers[glbMatrix[9]] ):>{width - withP}}{powerStr} |{row3:>{width}}" )
+
+    line = '-' * ( (width) * 3 + 1)
+    _parkerPrint( line + "\\")
+
+    le = ''
+    _parkerPrint( f"{col1:>{width}}{le}{col2:>{width}}{le}{col3:>{width}}{le}  {d1:>{width}}" )
+    _parkerPrint()
 
     return result
 
-  def _parkerStateSave():
-    nonlocal glbCntSearch
-    nonlocal glbMatrix
-    nonlocal glbStateFile
-
-    if glbStateFile == None:
-      return
-
-    state = {}
-    state[ "glbCntSearch" ] = glbCntSearch
-    state[ "glbMatrix"    ] = glbMatrix
-
-    jsonObject = json.dumps(state, indent=4)
-
-    with open( glbStateFile, "w", encoding="utf-8" ) as fileHandle:
-      fileHandle.write( jsonObject )
-
-  def _parkerStateRead():
-    nonlocal glbCntSearch
-    nonlocal glbMatrix
-    nonlocal glbStateFile
-
-    if glbStateFile == None:
-      return
-
-    if not os.path.isfile( glbStateFile ) :
-      return
-
-    state = {}
-    with open( glbStateFile, encoding="utf-8" ) as fileHandle:
-      state = json.load( fileHandle )
-
-    if "glbCntSearch" in state:
-      glbCntSearch = state[ "glbCntSearch" ]
-      glbMatrix    = state[ "glbMatrix"    ]
-
-  def _parkerSearch():
-    """
-    Search for a solution
-    Iterative process so we can save and load the state
-    """
-    nonlocal glbCntSearch
-    nonlocal glbLog
-    nonlocal glbArrSize
+  def _parkerInit():
     nonlocal glbMagicNumber
-    nonlocal glbPower
-    nonlocal glbMatrixSize
-    nonlocal glbSearchArr
-    nonlocal glbMatrix
-    nonlocal glbArrNumbers
-    nonlocal glbFileName
-    nonlocal glbStateFile
-    nonlocal glbBruteForce
+    nonlocal glbLog
+
+    glbMagicNumber = inMagicNumber                                   # The magic number for the horizontal, vertical and diagonal
+    glbLog         = inConfig[ "Parker" ][ "loginformation" ].startswith('t')
 
     if glbLog == True:
-      _parkerPrint( f"Array size: {glbArrSize}, magic number: {glbMagicNumber}, power: {glbPower}" )
+      _parkerPrint( f"Start {datetime.datetime.now():%Y-%m-%d %H:%M:%S}" )
 
     if glbMagicNumber % 3 != 0:
       if glbLog == True:
-        _parkerPrint( f"Magicnumber {glbMagicNumber} not divisable by 3" )
+        _parkerPrint( f"Magicnumber {glbMagicNumber} is not divisble by 3" )
       return False
 
-    if glbBruteForce == True:
-      maxSearch   = glbArrSize  # search all combinations, all rotations
-      checkSearch = 0           # lower bound for the search, special if power is 1
-    else:
-      maxSearch = glbArrSize // 2 + 1
+    if ParkerThreeSquareCheck( glbMagicNumber ) != True:
+      if glbLog == True:
+        _parkerPrint( f"Magic number {glbMagicNumber} cannot be written as the sum of 3 squares." )
+      return False
 
-      if glbPower == 1:
-        glbMatrix[ 5 ] = glbMagicNumber // 3
-        checkSearch    = 1
-        maxSearch      = glbMagicNumber // 3 + 1
-      else:
-        checkSearch = 0
+    x5 = glbMagicNumber // 3
+    # if ParkerIsSquare( x5 ) != True:
+    if not is_square( x5 ):
+      if glbLog == True:
+        _parkerPrint( f"Magic number {glbMagicNumber} divided by 3 ({x5}) is not a perfect square" )
+      return False
 
-    if glbPower == 2:
-      if ParkerThreeSquareCheck( glbMagicNumber ) != True:
-        if glbLog == True:
-          _parkerPrint( f"Magic number {glbMagicNumber} cannot be written as the sum of 3 squares." )
-        return False
+    return True
 
+
+  def _parkerDualSquares():
+    """
+    Get all the dual squares from x5
+    """
+    nonlocal glbMagicNumber
+    nonlocal glbArrNumbers
+    nonlocal glbMatrix
+
+    # x5 = mpz( glbMagicNumber // 3 )
+    x5 = glbMagicNumber // 3
+
+    # collect all the dual squares
+    glbArrNumbers  = []
+    xCount         = 0
+    xSquare        = 0
+    xCounterSquare = 0
+    # xMiddleNumber  = mpz( glbMagicNumber - x5 )
+    xMiddleNumber  = glbMagicNumber - x5
+
+    glbArrNumbers.append( 0 ) # 1-based, 0 = zero
+
+    # ParkerDualSquares( glbMagicNumber, glbArrNumbers )
+
+    # print( f"After ParkerDualSquares: {glbArrNumbers}" )
+
+
+    while True:
+      xCount  += 1
+      # xSquare  = mpz( xCount * xCount )  # this look faster then ** 2
+      xSquare  = xCount * xCount  # this look faster then ** 2
+      # xSquare  = int( mpz( xCount ** 2 ) )
+
+      if xSquare >= x5:
+        break
+
+      xCounterSquare = xMiddleNumber - xSquare
+      # if not ParkerIsSquare( int( xCounterSquare ) ):
+      if not is_square( xCounterSquare ):
+        continue
+
+      glbArrNumbers.append( xSquare        )
+      glbArrNumbers.append( xCounterSquare )
+
+
+    if len( glbArrNumbers ) < 8:
+      return False
+
+    # at last, at the center = x5
+    glbArrNumbers.append( x5 )
+
+    _parkerPrint( f"Magic number: {glbMagicNumber}" )
+    _parkerPrint( f"x5: {x5}" )
+    _parkerPrint( f"Found square numbers ({len(glbArrNumbers)}): {glbArrNumbers}" )
+
+    # print square for the first 8 squares found
+    glbMatrix[ 5 ] = len(glbArrNumbers) - 1 # x5
+    glbMatrix[ 1 ] = 1 # glbArrNumbers[ 1 ]
+    glbMatrix[ 9 ] = 2 # glbArrNumbers[ 2 ]
+    glbMatrix[ 3 ] = 3 # glbArrNumbers[ 3 ]
+    glbMatrix[ 7 ] = 4 # glbArrNumbers[ 4 ]
+    glbMatrix[ 8 ] = 5 # glbArrNumbers[ 5 ]
+    glbMatrix[ 2 ] = 6 # glbArrNumbers[ 6 ]
+    glbMatrix[ 6 ] = 7 # glbArrNumbers[ 7 ]
+    glbMatrix[ 4 ] = 8 # glbArrNumbers[ 8 ]
+
+    _parkerPrint()
+    _parkerPrintMatrix()
+    _parkerPrint()
+
+    return True
+
+  def _parkerSearch():
+    """
+    Fill the 3x3 matrix with all the numbers from glbArrNumbers and
+    look if it is a magic square
+    """
+    nonlocal glbMagicNumber
+    nonlocal glbLog
+    nonlocal glbArrNumbers
+    nonlocal glbSearchArr
+    nonlocal glbCntSearch
+
+    # use brute for for the given numbers
+    glbSearchArr[ 0 ] = {}
+    glbSearchArr[ 1 ] = { "field":1, "calc": None    , "start": None  }
+    glbSearchArr[ 2 ] = { "field":3, "calc": None    , "start": None  }
+    glbSearchArr[ 3 ] = { "field":2, "calc": [ 1, 3] , "start": None  }
+    glbSearchArr[ 4 ] = { "field":5, "calc": None    , "start": None  }
+    glbSearchArr[ 5 ] = { "field":7, "calc": [ 3, 5] , "start": None  }
+    glbSearchArr[ 6 ] = { "field":4, "calc": [ 1, 7] , "start": None  }
+    glbSearchArr[ 7 ] = { "field":6, "calc": [ 4, 5] , "start": None  }
+    glbSearchArr[ 8 ] = { "field":8, "calc": [ 2, 5] , "start": None  }
+    glbSearchArr[ 9 ] = { "field":9, "calc": [ 3, 6] , "start": None  }
+
+    # reset matrix
+    for iKey, _ in enumerate( glbMatrix ):
+      glbMatrix[ iKey ] = 0
+
+    checkSearch  = 0
+    maxSearch    = len( glbArrNumbers ) - 1
     found        = False              # found a magic square
     glbCntSearch = checkSearch + 1    # current search position in the matrix
-    iteration    = 0                  # iteration counter for save the state of the search
-
-    _parkerStateRead() # read state if available
 
     while checkSearch < glbCntSearch <= glbMatrixSize:
-      iteration += 1
-      if iteration > 100000000 : # 100 million
-        iteration = 0
-        _parkerStateSave()
-
       # pylint: disable=unsubscriptable-object
       currSearch = glbSearchArr[ glbCntSearch ]
       currField  = currSearch[ "field" ]
@@ -411,12 +538,20 @@ def ParkerSquare( inMagicNumber, inConfig ):
         glbCntSearch -= 1
         continue
 
-      if fldValue not in glbArrValues: # check if it is a valid value
+      if fldValue not in glbArrNumbers: # check if it is a valid value
         glbCntSearch -= 1
         continue
 
       # convert to matrix number
-      fldValue = glbArrValues[ fldValue ]
+      keyFound = False
+      for iCntKey, iCntVal in enumerate( glbArrNumbers ):
+        if iCntVal == fldValue:
+          fldValue = iCntKey
+          keyFound = True
+          break
+
+      if keyFound != True:
+        print( f"fldValue not found: {fldValue}" )
 
       # must have unique values
       if fldValue in glbMatrix:
@@ -432,14 +567,11 @@ def ParkerSquare( inMagicNumber, inConfig ):
           glbCntSearch -= 1
         else:
           found = True # Finally, found a magic square...
-          if glbBruteForce == True:
-            glbCntSearch -= 1 # search all the solutions
+          # glbCntSearch -= 1 # search all the solutions
       else:
-        # if power greater or equal 2 and 8 fields are correct then show the square, but not for brute force
-        if glbBruteForce == False and glbPower >= 2 and glbCntSearch > 8:
+        # if 5 fields are correct then show the square
+        if glbCntSearch > 5:
           _parkerPrintMatrix()
-
-      continue
 
     if glbLog == True:
       if found == True:
@@ -452,40 +584,22 @@ def ParkerSquare( inMagicNumber, inConfig ):
       fileFound = os.path.join( glbDirectory, f"square_{glbMagicNumber}.txt" )
       shutil.copyfile( glbFileName, fileFound)
 
-    if glbStateFile != None:
-      if os.path.isfile( glbStateFile):
-        os.remove( glbStateFile )
-
     if glbLog == True:
       _parkerPrint( f"End {datetime.datetime.now():%Y-%m-%d %H:%M:%S}" )
       _parkerPrint()
 
     return found
 
-  # --------------------
-  # ParkerSquare main
-  # --------------------
-  glbMagicNumber = inMagicNumber                                   # The magic number for the horizontal, vertical and diagonal
-  glbPower       = int( inConfig[ "Parker" ][ "power"          ] ) # power 1 = normal, 2 = power of 2, 3 = power of 3, etc.
-  glbDirectory   =      inConfig[ "Parker" ][ "datadirectory"  ]
-  glbOutputMode  =      inConfig[ "Parker" ][ "outputmode"     ]
-  glbLog         =      inConfig[ "Parker" ][ "loginformation" ].startswith('t')
-  glbBruteForce  =      inConfig[ "Parker" ][ "bruteforce"     ].startswith('t')
+  # -----------------
+  # main ParkerSquare
+  # -----------------
+  if _parkerInit() != True:
+    return False
 
-  # debug
-  # print( f"glbMagicNumber: {glbMagicNumber}")
-  # print( f"glbPower      : {glbPower}"      )
-  # print( f"glbDirectory  : {glbDirectory}"  )
-  # print( f"glbOutputMode : {glbOutputMode}" )
-  # print( f"glbLog        : {glbLog}"        )
+  if _parkerDualSquares() != True:
+    return False
 
-  try:
-    _parkerInit()
-    _parkerSearch()
-  except KeyboardInterrupt as keyExcept:
-    if inConfig[ "Parker" ][ "processes" ] == "1": # by single thread throw exception
-      raise keyExcept
-
+  return _parkerSearch()
 
 # ---------- Configuration ---------------
 
@@ -494,26 +608,20 @@ def DisplayHelp():
   Display help
   """
   print()
-  print( "usage: python parkersquare.py [options] <magicnumber> <magicnumber> <start-end>" )
+  print( "usage: python parkersquare2.py [options] <magicnumber> <magicnumber> <start-end>" )
   print( "options: " )
   print( "  -h               : Help" )
-  print( "  -p <number>      : Power, default is 2" )
-  print( "  -d <directory>   : Directory to place the output, default is current working directory/'parker'" )
+  print( "  -d <directory>   : Directory to place the output, default is current working directory/'parker3'" )
   print( "  -o <outputmode>  : Output mode, f=file, s=screen, b=both. Screen is the default" )
-  print( "  -l <True/False>  : Extra log information, default is true" )
+  print( "  -l <True/False>  : Extra log information, default is false" )
   print( "  -c <filename>    : Configuration file" )
   print( "  -n <number>      : Number of concurrent processes. 1 is the default. By 'auto' number of CPU's minus 2 will be used" )
   print( "  -w <number>      : Number of seconds to wait before to try to span a new process, default is 3 seconds" )
   print( "  -s <True/False>  : Load and save the state of the process. Default is false" )
-  print( "  -b <True/False>  : Use brute force, check all the combinations and no optimizations" )
   print( " " )
   print( "Examples:" )
-  print( "python parkersquare.py 21609" )
-  print( "python parkersquare.py 34344 -p 1 -l true -o s" )
-  print( "python parkersquare.py 100-100000 -p 2 -l false -o b" )
-  print( "python parkersquare.py 100000000000-200000000000 -p 2 -l false -o b -n auto -w 10 -s true" )
-  print( "python parkersquare.py 194481 -b true" )
-  # print( "python parkersquare.py 4691556 -b true" )
+  print( "python parkersquare2.py 21609 -l true" )
+  print( "python parkersquare2.py 10000000000000000-2000000000000000000 -o b -n auto -w 10 -s true" )
   print()
 
 
@@ -554,14 +662,12 @@ def ReadConfiguration( argv, magicNumbers, magicRanges ):
 
   # initials
   config[ "Parker" ] = {}
-  config[ "Parker" ][ "power"          ] = "2"
   config[ "Parker" ][ "datadirectory"  ] = ""      # empty is current directory
   config[ "Parker" ][ "outputmode"     ] = "s"     # f=file,s=screen,b=both
-  config[ "Parker" ][ "loginformation" ] = "true"  # log information
+  config[ "Parker" ][ "loginformation" ] = "false" # log information
   config[ "Parker" ][ "processes"      ] = "1"     # number of processes parallel, 1 = single thread
   config[ "Parker" ][ "waittime"       ] = "3"     # Wait time in seconds before to try a new process of all process are used
   config[ "Parker" ][ "state"          ] = "false" # Save and load state of current process
-  config[ "Parker" ][ "bruteforce"     ] = "false" # Save brute force, check all the combinations, no optimizations
 
   # Process argv
   hashArg = {}
@@ -572,11 +678,6 @@ def ReadConfiguration( argv, magicNumbers, magicRanges ):
       cArg = argv[ iCnt ]
 
       if mode != "":
-        if mode == "power":
-          # check integer
-          cArg = _checkInteger( cArg, "-p", 1, 100 )
-          if cArg == None:
-            return None
 
         if mode == "processes":
           if cArg == "auto":
@@ -609,11 +710,6 @@ def ReadConfiguration( argv, magicNumbers, magicRanges ):
           if cArg == None:
             return None
 
-        if mode == "bruteforce":
-          cArg = _checkBoolean( cArg, '-b' )
-          if cArg == None:
-            return None
-
         if mode == "outputmode":
           if cArg not in [ 'f', 's', 'b' ]:
             print( f"Option -o, {cArg} is not valid, expected 'f', 's' or 'b'" )
@@ -621,10 +717,6 @@ def ReadConfiguration( argv, magicNumbers, magicRanges ):
 
         hashArg[ mode ] = cArg
         mode = ""
-        continue
-
-      if cArg == "-b":
-        mode = "bruteforce"
         continue
 
       if cArg == "-s":  # state
@@ -637,10 +729,6 @@ def ReadConfiguration( argv, magicNumbers, magicRanges ):
 
       if cArg == "-w":
         mode = "waittime"
-        continue
-
-      if cArg == "-p":  # power
-        mode = "power"
         continue
 
       if cArg == "-d": # directory
@@ -730,7 +818,7 @@ def CheckConfiguration( config ):
   """
   # fill default directory
   if config[ "Parker" ][ "datadirectory"  ] == "":
-    glbDirectory = os.path.join( os.getcwd(), "parker" )
+    glbDirectory = os.path.join( os.getcwd(), "parker3" )
     if config[ "Parker" ][ "outputmode" ] in [ 'b', 'f' ]:
       if not os.path.exists(glbDirectory):
         os.makedirs(glbDirectory)
@@ -747,17 +835,108 @@ def CheckConfiguration( config ):
 
   return True
 
-
 # ---------- Multiprocessing ---------------
 
-def StartThread( magicNumber, nrProcesses, config, procArr ):
+def WalkRanges( iRangeNo, startNum, endNum, iConfig ):
+  """
+  Walk all the magic numbers in the given range
+  """
+  glbStateFile = None   # filename for state file, none = no state file
+  iRangeWalk   = 0
+
+  def _parkerStateSave():
+    nonlocal glbStateFile
+    nonlocal iRangeWalk
+
+    if glbStateFile == None:
+      return
+
+    state = {}
+    state[ "startNum"   ] = startNum
+    state[ "endNum"     ] = endNum
+    state[ "iRangeWalk" ] = iRangeWalk
+
+    jsonObject = json.dumps(state, indent=4)
+
+    with open( glbStateFile, "w", encoding="utf-8" ) as fileHandle:
+      fileHandle.write( jsonObject )
+
+  def _parkerStateRead():
+    nonlocal glbStateFile
+    nonlocal iRangeWalk
+
+    if glbStateFile == None:
+      return
+
+    # print( f"State file: {glbStateFile}" )
+
+    if not os.path.isfile( glbStateFile ) :
+      return
+
+    state = {}
+    with open( glbStateFile, encoding="utf-8" ) as fileHandle:
+      state = json.load( fileHandle )
+
+    # print( f"State readed: {state}" )
+    if "iRangeWalk" in state:
+      iRangeWalk = state[ "iRangeWalk"    ]
+      print( f"State restored by range {iRangeNo} width {iRangeWalk}" )
+
+  try:
+
+    if iConfig[ "Parker" ][ "state" ].startswith('t'):
+      glbStateFile = os.path.join( iConfig[ "Parker" ][ "datadirectory" ], f"state_{iRangeNo}.json" )
+
+    # Load State
+    _parkerStateRead()
+
+    iRangeWalk = max( startNum, iRangeWalk )
+
+    while iRangeWalk % 3 != 0:
+      iRangeWalk += 1
+
+    #
+    # The middle (x5) is always a square
+    # The middle is always the magic number divided by 3
+    # If we calculate the magic number back to this
+    # and then count this (iCntWalk)
+    # We have then always a square in x5
+    #
+    iCntWalk = iRangeWalk // 3
+    iCntWalk = int( math.floor( math.sqrt( iCntWalk ) ) )
+
+    iRangeWalk = (iCntWalk * iCntWalk) * 3
+
+    while iRangeWalk < endNum:
+      print( f"Counter: {iCntWalk}, number: {iRangeWalk}" )
+      ParkerSquare(iRangeWalk,iConfig )
+
+      iCntWalk += 1
+      iRangeWalk = (iCntWalk * iCntWalk) * 3
+
+      # for big number ( > 14 digits) save state
+      if glbStateFile != None:
+        # print( f"Save range: {iRangeNo} -> {iRangeWalk}")
+        _parkerStateSave()
+
+    # delete state
+    if glbStateFile != None:
+      if os.path.isfile( glbStateFile):
+        os.remove( glbStateFile )
+
+  except KeyboardInterrupt as keyExcept:
+    if iConfig[ "Parker" ][ "processes" ] == "1": # by single thread throw exception
+      raise keyExcept
+
+
+def StartThread( iRangeNo, iStart, iEnd, nrProcesses, config, procArr ):
   """
   Start a parker square process
   """
 
-  # 1 is not to use multiprocessing, all in 1 thread
-  if nrProcesses <= 1:
-    ParkerSquare(magicNumber,config )
+  # 1 is not to use multiprocessing
+  if nrProcesses <= 1 :
+    WalkRanges( iRangeNo, iStart, iEnd, config )
     return True
 
   # find process slot and cleanup old processes
@@ -776,12 +955,14 @@ def StartThread( magicNumber, nrProcesses, config, procArr ):
     return False
 
   # start a new process
-  proc = multiprocessing.Process( target=ParkerSquare, args=(magicNumber,config,) )
+  proc = multiprocessing.Process( target=WalkRanges, args=(iRangeNo,iStart,iEnd,config,) )
   proc.start()
 
   elem = {}
-  elem[ "proc"  ] = proc
-  elem[ "number"] = magicNumber
+  elem[ "proc"    ] = proc
+  elem[ "iRangeNo"] = iRangeNo
+  elem[ "iStart"  ] = iStart
+  elem[ "iEnd"    ] = iEnd
 
   procArr[ procNr ] = elem
 
@@ -827,19 +1008,15 @@ def StateCreateLoad( config, magicNumbers, magicRanges):
   # check state, if exist load it
   state = {}
 
-  state[ "power"           ] = config[ "Parker" ][ "power"          ]
   state[ "outputmode"      ] = config[ "Parker" ][ "outputmode"     ]
   state[ "loginformation"  ] = config[ "Parker" ][ "loginformation" ]
   state[ "processes"       ] = config[ "Parker" ][ "processes"      ]
   state[ "waittime"        ] = config[ "Parker" ][ "waittime"       ]
-  state[ "bruteforce"      ] = config[ "Parker" ][ "bruteforce"     ]
 
   state[ "magicNumbers"    ] = magicNumbers
   state[ "magicRanges"     ] = magicRanges
 
-  state[ "currentNumber"   ] = -1   # current magic number too processes
   state[ "currentRange"    ] = -1   # current range too processes
-  state[ "currentCntRange" ] = -1   # current number in the current range
 
   state[ "currprocs"       ] = None # list of all the processes
 
@@ -847,23 +1024,21 @@ def StateCreateLoad( config, magicNumbers, magicRanges):
 
   # already existing state preferred
   newState = StateRead( state, config )
+
   if newState != None:
     # change configuration with new state
     state = newState
 
-    config[ "Parker" ][ "power"          ] = state[ "power"          ]
     config[ "Parker" ][ "outputmode"     ] = state[ "outputmode"     ]
     config[ "Parker" ][ "loginformation" ] = state[ "loginformation" ]
     config[ "Parker" ][ "processes"      ] = state[ "processes"      ]
     config[ "Parker" ][ "waittime"       ] = state[ "waittime"       ]
-    config[ "Parker" ][ "bruteforce"     ] = state[ "bruteforce"     ]
 
     return state
 
   # new state file, save it
   StateWrite( state )
   return state
-
 
 # ---------- Main Loop ---------------
 
@@ -879,7 +1054,6 @@ def MainLoop( magicNumbers, magicRanges, config, state ):
 
   iCurrMagic  = 0
   iCurrRange  = 0
-  iRangeWalk  = 0
 
   def _writeCurrentState():
     if state == None:
@@ -890,45 +1064,52 @@ def MainLoop( magicNumbers, magicRanges, config, state ):
     for checkProc in procArr:
       if checkProc == None:
         continue
-      arrCurr.append( checkProc[ "number"] )
+      arrCurr.append( checkProc[ "iRangeNo"] )
 
-    state[ "currentNumber"   ] = iCurrMagic   # current magic number too processes
     state[ "currentRange"    ] = iCurrRange   # current range too processes
-    state[ "currentCntRange" ] = iRangeWalk   # current number in the current range
     state[ "currprocs"       ] = arrCurr
 
     StateWrite( state )
 
   try:
+    # split range into ranges for each process 1
+    if len( magicRanges ) == 1 and nrProcesses > 1:
+      elem     = magicRanges[ 0 ]
+      startNum = elem[ 'start' ]
+      endNum   = elem[ 'end'   ]
+
+      iRange = (endNum - startNum) // nrProcesses
+      del magicRanges[0]
+      for iCurrRange in range( 0, nrProcesses ):
+        elem = {}
+        elem[ 'start' ] = startNum
+        elem[ 'end'   ] = startNum + iRange - 1
+        magicRanges.append( elem )
+        startNum += iRange
+      magicRanges[ iCurrRange ][ 'end' ] = endNum
+
     if state != None and state[ "currprocs" ] != None:
       # restart current processes
       for number in state[ "currprocs" ]:
-        while StartThread( number, nrProcesses, config, procArr ) == False:
-          _writeCurrentState()
-          time.sleep( 3 )
+        elem     = magicRanges[ number ]
+        startNum = elem[ 'start' ]
+        endNum   = elem[ 'end'   ]
+        while StartThread( number, startNum, endNum, nrProcesses, config, procArr ) == False:
+          print( f"Wait range: {iCurrRange}")
+          time.sleep( waittime )
 
     iCurrMagic = 0
     iCurrRange = 0
-    iRangeWalk = 0
 
     # restore state if given
     if state != None:
-      if state[ "currentNumber" ] >= 0:
-        iCurrMagic = state[ "currentNumber" ]
-
       if state[ "currentRange" ] >= 0:
         iCurrRange = state[ "currentRange" ]
-
-        if state[ "currentCntRange" ] > 0:
-          iRangeWalk = state[ "currentCntRange" ]
 
     # walk all the given magic numbers
     while iCurrMagic < len( magicNumbers ):
       number = magicNumbers[ iCurrMagic ]
-      while StartThread( number, nrProcesses, config, procArr ) == False:
-        _writeCurrentState()
-        print( f"Wait: {number}")
-        time.sleep( 3 )
+      ParkerSquare(number,config )
       iCurrMagic += 1
 
     # walk all the given ranges
@@ -936,19 +1117,12 @@ def MainLoop( magicNumbers, magicRanges, config, state ):
       elem     = magicRanges[ iCurrRange ]
       startNum = elem[ 'start' ]
       endNum   = elem[ 'end'   ] + 1 # inclusive
-      while startNum % 3 != 0:
-        startNum += 1
 
-      iRangeWalk = max( startNum, iRangeWalk )
-      while iRangeWalk < endNum:
-        number = iRangeWalk
-        while StartThread( number, nrProcesses, config, procArr ) == False:
-          _writeCurrentState()
-          print( f"Wait: {number}")
-          time.sleep( waittime )
-        iRangeWalk += 3
+      while StartThread( iCurrRange, startNum, endNum, nrProcesses, config, procArr ) == False:
+        _writeCurrentState()
+        print( f"Wait range: {iCurrRange}")
+        time.sleep( waittime )
 
-      iRangeWalk  = 0
       iCurrRange += 1
 
     # wait for all the processes to complete
@@ -970,6 +1144,30 @@ def MainLoop( magicNumbers, magicRanges, config, state ):
     print( f"Exception: { type(exceptAll).__name__ } {exceptAll}" )
 
 
+def MainRunTime( timeInSeconds ):
+  """
+  Give the running time in human format
+  """
+  cRunTime = ""
+  if timeInSeconds is None:
+    timeInSeconds = 0
+
+  if timeInSeconds < 60:
+    cRunTime = f"{timeInSeconds} seconds"
+  else:
+    timeInMinutes = math.floor( timeInSeconds / 60 )
+    dispSeconds   = round( timeInSeconds - 60 * timeInMinutes )
+
+    if timeInMinutes < 60:
+      cRunTime = f"{timeInMinutes} minutes {dispSeconds} seconds"
+    else:
+      timeInHours = math.floor( timeInMinutes / 60 )
+      dispMin     = timeInMinutes - timeInHours * 60
+      cRunTime    = f"{timeInHours} hours {dispMin} minutes {dispSeconds} seconds"
+
+  return cRunTime
+
+
 def MainStart():
   """
   Main
@@ -980,8 +1178,6 @@ def MainStart():
   # command line parser
   globalConfig = ReadConfiguration( sys.argv, globalMagicNumbers, globalMagicRanges )
   if globalConfig == None:
-    # print()
-    # DisplayHelp()
     sys.exit()
 
   if CheckConfiguration( globalConfig ) != True:
@@ -996,33 +1192,33 @@ def MainStart():
     print( f'State restored: {globalState[ "statefilename" ]}' )
 
     if CheckConfiguration( globalConfig ) != True:
+      print( "Incorrect state file" )
       sys.exit()
 
   if len( globalMagicNumbers ) == 0 and len( globalMagicRanges ) == 0:
-    DisplayHelp()
+    print( "No magic numbers given" )
     sys.exit()
 
   print()
   print( "Settings" )
-  print( f'Power              : {globalConfig[ "Parker" ][ "power"          ]}' )
   print( f'Output             : {globalConfig[ "Parker" ][ "outputmode"     ]}' )
   print( f'Extra logging      : {globalConfig[ "Parker" ][ "loginformation" ]}' )
   print( f'Output directory   : {globalConfig[ "Parker" ][ "datadirectory"  ]}' )
   print( f'Number of processes: {globalConfig[ "Parker" ][ "processes"      ]}' )
   print( f'Wait time          : {globalConfig[ "Parker" ][ "waittime"       ]} seconds' )
   print( f'State              : {globalConfig[ "Parker" ][ "state"          ]}' )
-  print( f'Brute force        : {globalConfig[ "Parker" ][ "bruteforce"     ]}' )
   print()
   print( "To stop the program, press ctrl-c" )
   print()
 
+  globalStartTime = time.time()
   MainLoop( globalMagicNumbers, globalMagicRanges, globalConfig, globalState )
+  print( f"Run time: { MainRunTime(time.time() - globalStartTime)}" )
 
 
-# =====================================
-# main
-# =====================================
-
+# ================
+# Main
+# ================
 if __name__ == '__main__': # this is needed otherwise multiprocessing don't work
   MainStart()
 
